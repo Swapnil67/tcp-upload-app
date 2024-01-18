@@ -3,20 +3,47 @@ const fs = require("node:fs/promises");
 
 const server = net.createServer();
 
+let fileHandler, writeStream = null;
+
 server.on("connection", async (socket) => {
   console.log("new connection made");
-
-  const fileHandler = await fs.open(`storage/test.txt`, 'w');
-
+  
   socket.on("data", async (chunk) => {
     // console.log("Data: ", chunk);
-    const writeStream = fileHandler.createWriteStream();
-    writeStream.write(chunk);
+    // console.log("fileHandler: ", fileHandler);
+    if(!fileHandler) {
+      socket.pause(); // * No longer receive data from client
+      fileHandler = await fs.open(`storage/test.txt`, 'w');
+
+      // * Write Stream
+      writeStream = fileHandler.createWriteStream();
+
+      // * Writing to a destination file
+      writeStream.write(chunk);
+
+      socket.resume(); // * Resume receiving data from client
+
+      writeStream.on('drain', () => {
+        socket.resume();
+      })
+
+    } 
+    else {
+      if(!writeStream.write(chunk)) {
+        socket.pause();
+      }
+    }
+
   });
 
   socket.on('end', () => {
+    console.log("socket.readableEnded: ", socket.readableEnded);
     console.log("Connection Closed on Server");
-    fileHandler.close();
+    if(fileHandler) {
+      fileHandler.close();
+      fileHandler = null;
+      writeStream = null;
+    }
   })
 });
 
