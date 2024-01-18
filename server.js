@@ -3,9 +3,9 @@ const fs = require("node:fs/promises");
 
 const server = net.createServer();
 
-let fileHandler, writeStream = null;
 
 server.on("connection", async (socket) => {
+  let fileHandler, writeStream = null;
   console.log("new connection made");
   
   socket.on("data", async (chunk) => {
@@ -13,13 +13,19 @@ server.on("connection", async (socket) => {
     // console.log("fileHandler: ", fileHandler);
     if(!fileHandler) {
       socket.pause(); // * No longer receive data from client
-      fileHandler = await fs.open(`storage/test.txt`, 'w');
+
+      // * Extracting the filename
+      const chunkStr = chunk.toString('utf-8');
+      const dividerIndex = chunkStr.indexOf('----------');
+      const fileName = chunkStr.substring(10, dividerIndex);
+
+      fileHandler = await fs.open(`storage/${fileName}`, 'w');
 
       // * Write Stream
       writeStream = fileHandler.createWriteStream();
 
-      // * Writing to a destination file
-      writeStream.write(chunk);
+      // * Writing to a destination file, discard the headers
+      writeStream.write(chunk.subarray(dividerIndex+10));
 
       socket.resume(); // * Resume receiving data from client
 
